@@ -1,0 +1,678 @@
+<title>Ole's Artemis-raket</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+/* Layout: links het spaarformulier + overzicht + logboek, rechts de raket die steentje voor steentje gebouwd wordt (op telefoon: raket bovenaan). */
+:root {
+  --bg: #eef2f8;
+  --surface: #ffffff;
+  --ink: #14213d;
+  --muted: #5a6680;
+  --line: #d5dceb;
+  --accent: #e0702a;      /* SLS-kernfase oranje */
+  --accent-ink: #ffffff;
+  --klus: #2f9e5b;
+  --eigen: #2f6fd6;
+  --gift: #c2408a;
+  --good: #2f9e5b;
+  --bad: #c43838;
+  --sky-top: #0b1631;
+  --sky-bot: #1c2f5e;
+  --display: "Bungee", "Arial Black", Impact, sans-serif;
+  --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1424; --surface: #161f35; --ink: #e8edf7; --muted: #9aa6c2; --line: #2a3655;
+    --accent: #f08a45; --accent-ink: #1a0d03; --klus: #4cc27c; --eigen: #6a9cf0; --gift: #e06aaf;
+    --good: #4cc27c; --bad: #ef6b6b; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1424; --surface: #161f35; --ink: #e8edf7; --muted: #9aa6c2; --line: #2a3655;
+  --accent: #f08a45; --accent-ink: #1a0d03; --klus: #4cc27c; --eigen: #6a9cf0; --gift: #e06aaf;
+  --good: #4cc27c; --bad: #ef6b6b; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.5; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-inline: 16px; padding-block: 20px 48px; display: grid; gap: 20px; }
+h1, h2 { font-family: var(--display); font-weight: 400; margin: 0; text-wrap: balance; letter-spacing: .01em; }
+h1 { font-size: clamp(1.6rem, 4.5vw, 2.4rem); line-height: 1.1; }
+h2 { font-size: 1.05rem; }
+.eyebrow { text-transform: uppercase; letter-spacing: .12em; font-size: .75rem; color: var(--muted); font-weight: 700; }
+.num { font-variant-numeric: tabular-nums; }
+
+header.top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 12px; }
+header.top p { margin: 4px 0 0; color: var(--muted); }
+.status-pill { font-size: .8rem; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; background: var(--surface); }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 400px); gap: 20px; align-items: start; }
+.col { display: grid; gap: 20px; min-width: 0; }
+@media (max-width: 860px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .rocket-col { order: -1; }
+}
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 14px; min-width: 0; }
+
+/* ---------- Raket ---------- */
+.rocket-col { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); }
+@media (max-width: 860px) { .rocket-col { position: static; } }
+.pad {
+  border-radius: 14px; overflow: hidden; position: relative; color: #eef2ff;
+  background:
+    radial-gradient(1.5px 1.5px at 12% 18%, #fff 60%, transparent 61%),
+    radial-gradient(1px 1px at 78% 12%, #fff 60%, transparent 61%),
+    radial-gradient(1.5px 1.5px at 64% 34%, #cfe0ff 60%, transparent 61%),
+    radial-gradient(1px 1px at 30% 42%, #fff 60%, transparent 61%),
+    radial-gradient(1px 1px at 88% 52%, #fff 60%, transparent 61%),
+    radial-gradient(1.5px 1.5px at 20% 66%, #cfe0ff 60%, transparent 61%),
+    linear-gradient(180deg, var(--sky-top), var(--sky-bot));
+  padding: 18px 18px 0; display: grid; gap: 10px;
+}
+.pad-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.pct { font-family: var(--display); font-size: clamp(2.4rem, 8vw, 3.2rem); line-height: 1; color: #ffb27a; }
+.pad-head .sub { font-size: .85rem; color: #b9c6e6; text-align: right; }
+.rocket-stage { display: flex; justify-content: center; }
+#rocket { width: 100%; max-width: 300px; height: auto; max-height: 62vh; overflow: visible; display: block; }
+#rocket .ghost { fill: none; stroke: #7f93c4; stroke-opacity: .45; stroke-width: 1; stroke-dasharray: 3 3; }
+#rocket .ghost-stud { fill: none; stroke: #7f93c4; stroke-opacity: .3; stroke-width: 1; }
+#rocket .brick { stroke: rgba(0,0,0,.35); stroke-width: 1; }
+#rocket .new { animation: drop .5s cubic-bezier(.3,1.4,.6,1) both; }
+@keyframes drop { from { transform: translateY(-18px); opacity: 0; } to { transform: none; opacity: 1; } }
+#ship { transition: transform 2.6s cubic-bezier(.55,0,.8,.4); }
+#ship.launched { transform: translateY(-1200px); }
+#flame { opacity: 0; transition: opacity .3s; }
+#ship.launched #flame, #ship.igniting #flame { opacity: 1; }
+#flame path { animation: flicker .12s infinite alternate; transform-origin: 50% 0; transform-box: fill-box; }
+@keyframes flicker { from { transform: scaleY(1); } to { transform: scaleY(1.25); } }
+.pad-foot { background: #2a2f3a; color: #d7dbe4; margin: 0 -18px; padding: 10px 18px; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: .85rem; }
+.pad-foot b { color: #fff; }
+
+.milestones { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.ms { border: 1px dashed #5d6f9e; border-radius: 8px; padding: 6px 4px; text-align: center; font-size: .72rem; color: #9fb0d6; line-height: 1.25; }
+.ms b { display: block; font-family: var(--display); font-weight: 400; font-size: .95rem; }
+.ms.on { border-style: solid; border-color: #ffb27a; background: rgba(255,178,122,.14); color: #ffe2cc; }
+.launch-btn { justify-self: center; margin-bottom: 12px; }
+
+/* ---------- Totaal ---------- */
+.totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.total { display: grid; gap: 2px; }
+.total .big { font-family: var(--display); font-size: clamp(1.5rem, 4vw, 2rem); line-height: 1.1; }
+.total .big.accent { color: var(--accent); }
+.meter { height: 22px; border-radius: 6px; background: var(--line); overflow: hidden; display: flex; }
+.meter span { display: block; height: 100%; transition: width .6s ease; }
+.meter .m-klus { background: var(--klus); } .meter .m-eigen { background: var(--eigen); } .meter .m-gift { background: var(--gift); }
+.goal-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--muted); font-size: .9rem; }
+.hint { color: var(--muted); font-size: .9rem; margin: 0; }
+
+/* ---------- Bronnen ---------- */
+.sources { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 520px) { .sources { grid-template-columns: minmax(0, 1fr); } }
+.src { border-radius: 10px; padding: 12px; border: 1px solid var(--line); display: grid; gap: 2px; border-top: 5px solid var(--c); }
+.src .amt { font-family: var(--display); font-size: 1.25rem; }
+.src .meta { color: var(--muted); font-size: .85rem; }
+
+/* ---------- Formulier ---------- */
+form { display: grid; gap: 14px; }
+.kinds { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; border: 0; padding: 0; margin: 0; }
+.kinds legend { margin-bottom: 6px; padding: 0; }
+.kinds input { position: absolute; opacity: 0; pointer-events: none; }
+.kinds label { border: 2px solid var(--line); border-radius: 10px; padding: 10px 8px; text-align: center; cursor: pointer; font-weight: 700; display: grid; gap: 2px; }
+.kinds label small { font-weight: 400; color: var(--muted); font-size: .75rem; }
+.kinds input:checked + label { border-color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent); }
+.kinds input:focus-visible + label { outline: 3px solid var(--c); outline-offset: 2px; }
+.fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 520px) { .fields { grid-template-columns: minmax(0, 1fr); } }
+.field { display: grid; gap: 4px; min-width: 0; }
+.field.wide { grid-column: 1 / -1; }
+label.l { font-weight: 700; font-size: .9rem; }
+input[type=text], input[type=date], input[type=number], input[inputmode] {
+  font: inherit; color: var(--ink); background: var(--bg); border: 1.5px solid var(--line); border-radius: 8px; padding: 10px 12px; width: 100%; min-width: 0;
+}
+input:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.euro { position: relative; }
+.euro span { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); font-weight: 700; }
+.euro input { padding-left: 30px; font-size: 1.15rem; font-weight: 700; }
+.err { color: var(--bad); font-size: .9rem; min-height: 1.2em; margin: 0; }
+
+button { font: inherit; cursor: pointer; border-radius: 10px; border: 0; }
+.btn { background: var(--accent); color: var(--accent-ink); font-family: var(--display); font-size: 1rem; padding: 12px 18px; }
+.btn:hover { filter: brightness(1.06); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn-ghost { background: transparent; color: var(--ink); border: 1.5px solid var(--line); padding: 6px 12px; font-size: .85rem; }
+.btn-ghost:hover { border-color: var(--accent); }
+
+/* ---------- Logboek ---------- */
+.log-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.log { list-style: none; margin: 0; padding: 0; display: grid; }
+.log li { display: grid; grid-template-columns: 88px 92px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+.log li:first-child { border-top: 0; }
+.log .d { color: var(--muted); font-size: .9rem; }
+.chip { display: inline-block; font-size: .75rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); text-align: center; }
+.log .who { min-width: 0; overflow-wrap: anywhere; }
+.log .who small { display: block; color: var(--muted); }
+.log .a { font-weight: 700; text-align: right; }
+.del { background: transparent; color: var(--muted); padding: 4px 8px; font-size: .8rem; border: 1px solid transparent; }
+.del:hover { color: var(--bad); border-color: var(--line); }
+.del.confirm { color: #fff; background: var(--bad); }
+@media (max-width: 560px) {
+  .log li { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "who a" "meta del"; row-gap: 4px; }
+  .log .who { grid-area: who; } .log .a { grid-area: a; } .log .del { grid-area: del; justify-self: end; }
+  .log .meta { grid-area: meta; display: flex; gap: 8px; align-items: center; }
+}
+@media (min-width: 561px) { .log .meta { display: contents; } }
+.empty { text-align: center; color: var(--muted); padding: 18px 8px; border: 1.5px dashed var(--line); border-radius: 10px; }
+
+.toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 20px); transform: translate(-50%, 20px); background: var(--ink); color: var(--bg); padding: 12px 18px; border-radius: 12px; font-weight: 700; opacity: 0; transition: .3s; pointer-events: none; max-width: calc(100% - 32px); text-align: center; z-index: 20; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+#confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15; }
+
+@media (prefers-reduced-motion: reduce) {
+  #rocket .new, #flame path { animation: none; }
+  #ship { transition: none; }
+  .meter span { transition: none; }
+}
+</style>
+
+<canvas id="confetti" aria-hidden="true"></canvas>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">Spaardoel · LEGO Icons 10341</div>
+      <h1>Ole bouwt de Artemis-raket</h1>
+      <p>Elke euro die je spaart is een steentje erbij. Bij 100% gaat de raket de lucht in.</p>
+    </div>
+    <span class="status-pill" id="status">Gegevens laden…</span>
+  </header>
+
+  <div class="layout">
+    <div class="col">
+      <section class="panel" aria-labelledby="h-total">
+        <h2 id="h-total" class="eyebrow" style="font-family:var(--body)">Spaarpot</h2>
+        <div class="totals">
+          <div class="total"><span class="eyebrow">Gespaard</span><span class="big accent num" id="t-saved">€ 0,00</span></div>
+          <div class="total"><span class="eyebrow">Nog nodig</span><span class="big num" id="t-left">€ 259,99</span></div>
+          <div class="total"><span class="eyebrow">Doel</span><span class="big num" id="t-goal">€ 259,99</span></div>
+        </div>
+        <div class="meter" role="img" id="meter" aria-label="Voortgang">
+          <span class="m-klus" id="m-klus" style="width:0"></span><span class="m-eigen" id="m-eigen" style="width:0"></span><span class="m-gift" id="m-gift" style="width:0"></span>
+        </div>
+        <p class="hint" id="t-hint">Voeg je eerste bedrag toe en zie het eerste steentje op het lanceerplatform verschijnen.</p>
+        <div class="goal-row">
+          <span id="goal-text">Doelbedrag: adviesprijs NASA Artemis Space Launch System op LEGO.nl.</span>
+          <button type="button" class="btn-ghost" id="goal-edit">Doel aanpassen</button>
+        </div>
+        <form id="goal-form" hidden>
+          <div class="fields">
+            <div class="field">
+              <label class="l" for="g-amount">Nieuw doelbedrag</label>
+              <div class="euro"><span>€</span><input id="g-amount" inputmode="decimal" autocomplete="off"></div>
+            </div>
+            <div class="field" style="align-content:end; display:flex; gap:8px; align-items:end;">
+              <button class="btn" type="submit">Opslaan</button>
+              <button class="btn-ghost" type="button" id="goal-cancel">Annuleren</button>
+            </div>
+          </div>
+          <p class="err" id="g-err"></p>
+        </form>
+      </section>
+
+      <section class="panel" aria-labelledby="h-add">
+        <h2 id="h-add">Geld erbij</h2>
+        <form id="add-form" novalidate>
+          <fieldset class="kinds">
+            <legend class="l">Waar komt het geld vandaan?</legend>
+            <input type="radio" name="kind" id="k-klus" value="klus" checked><label for="k-klus" style="--c:var(--klus)">Klusje<small>verdiend</small></label>
+            <input type="radio" name="kind" id="k-eigen" value="eigen"><label for="k-eigen" style="--c:var(--eigen)">Eigen inleg<small>uit je spaarpot</small></label>
+            <input type="radio" name="kind" id="k-gift" value="gift"><label for="k-gift" style="--c:var(--gift)">Gift<small>gekregen</small></label>
+          </fieldset>
+          <div class="fields">
+            <div class="field">
+              <label class="l" for="f-amount">Bedrag</label>
+              <div class="euro"><span>€</span><input id="f-amount" inputmode="decimal" placeholder="2,50" autocomplete="off"></div>
+            </div>
+            <div class="field">
+              <label class="l" for="f-date">Datum</label>
+              <input type="date" id="f-date">
+            </div>
+            <div class="field">
+              <label class="l" for="f-from" id="f-from-label">Wie betaalde?</label>
+              <input type="text" id="f-from" list="names" placeholder="Papa" autocomplete="off" maxlength="40">
+              <datalist id="names"></datalist>
+            </div>
+            <div class="field">
+              <label class="l" for="f-note" id="f-note-label">Welk klusje?</label>
+              <input type="text" id="f-note" placeholder="Auto gewassen" autocomplete="off" maxlength="80">
+            </div>
+          </div>
+          <p class="err" id="f-err" role="alert"></p>
+          <button class="btn" type="submit" id="f-submit">Steentjes toevoegen</button>
+        </form>
+      </section>
+
+      <section class="panel" aria-labelledby="h-src">
+        <h2 id="h-src">Waar komt het vandaan?</h2>
+        <div class="sources">
+          <div class="src" style="--c:var(--klus)"><span class="eyebrow">Klusjes</span><span class="amt num" id="s-klus">€ 0,00</span><span class="meta" id="s-klus-m">0 keer</span></div>
+          <div class="src" style="--c:var(--eigen)"><span class="eyebrow">Eigen inleg</span><span class="amt num" id="s-eigen">€ 0,00</span><span class="meta" id="s-eigen-m">0 keer</span></div>
+          <div class="src" style="--c:var(--gift)"><span class="eyebrow">Giften</span><span class="amt num" id="s-gift">€ 0,00</span><span class="meta" id="s-gift-m">0 keer</span></div>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="h-log">
+        <div class="log-head">
+          <h2 id="h-log">Logboek</h2>
+          <span class="hint" id="log-count"></span>
+        </div>
+        <ul class="log" id="log"></ul>
+        <div class="empty" id="log-empty">Nog niets gespaard. Je eerste klusje, gift of eigen inleg verschijnt hier met datum en van wie het kwam.</div>
+      </section>
+    </div>
+
+    <aside class="col rocket-col" aria-label="Raket">
+      <div class="pad">
+        <div class="pad-head">
+          <div><div class="pct num" id="pct">0%</div></div>
+          <div class="sub"><span class="num" id="bricks">0 van 0</span> steentjes geplaatst<br><span id="phase">Lanceerplatform staat klaar</span></div>
+        </div>
+        <div class="milestones" id="milestones">
+          <div class="ms" data-p="25"><b>25%</b>Boosters</div>
+          <div class="ms" data-p="50"><b>50%</b>Halverwege</div>
+          <div class="ms" data-p="75"><b>75%</b>Orion in zicht</div>
+          <div class="ms" data-p="100"><b>100%</b>Lancering</div>
+        </div>
+        <div class="rocket-stage">
+          <svg id="rocket" role="img" aria-label="LEGO-raket die wordt opgebouwd"></svg>
+        </div>
+        <button class="btn launch-btn" type="button" id="launch" hidden>Lanceer de raket!</button>
+        <div class="pad-foot"><span>NASA Artemis SLS · 3601 stukjes</span><span>Kennedy Space Center · <b>LC-39B</b></span></div>
+      </div>
+    </aside>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  const DEFAULT_TARGET = 25999; // centen
+  const KINDS = {
+    klus:  { label: "Klusje",      color: "var(--klus)",  fromLabel: "Wie betaalde?",   fromPh: "Papa",  noteLabel: "Welk klusje?",       notePh: "Auto gewassen" },
+    eigen: { label: "Eigen inleg", color: "var(--eigen)", fromLabel: "Van wie?",        fromPh: "Ole",   noteLabel: "Waarvandaan?",       notePh: "Zakgeld september" },
+    gift:  { label: "Gift",        color: "var(--gift)",  fromLabel: "Van wie?",        fromPh: "Oma",   noteLabel: "Waarom? (mag leeg)", notePh: "Verjaardag" },
+  };
+  const eur = new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" });
+  const fmt = c => eur.format((c || 0) / 100);
+  const $ = id => document.getElementById(id);
+
+  let state = { entries: [], target: DEFAULT_TARGET, ready: false };
+  let prevFilled = null;
+  let store = null;
+
+  /* ---------- Opslag: gedeelde db, anders lokaal ---------- */
+  const LS_KEY = "ole-raket-v1";
+  function localStore() {
+    const read = () => { try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch { return {}; } };
+    const write = d => { try { localStorage.setItem(LS_KEY, JSON.stringify(d)); } catch {} };
+    let listener = () => {};
+    const emit = () => { const d = read(); listener(d.entries || [], d.target ?? DEFAULT_TARGET); };
+    return {
+      mode: "local",
+      subscribe(fn) { listener = fn; emit(); },
+      async add(e) { const d = read(); d.entries = d.entries || []; d.entries.push({ ...e, id: "l" + Date.now() + Math.random().toString(36).slice(2, 6) }); write(d); emit(); },
+      async remove(id) { const d = read(); d.entries = (d.entries || []).filter(x => x.id !== id); write(d); emit(); },
+      async setTarget(t) { const d = read(); d.target = t; write(d); emit(); },
+    };
+  }
+  function dbStore(db) {
+    let entries = [], target = DEFAULT_TARGET, listener = () => {};
+    const emit = () => listener(entries, target);
+    return {
+      mode: "db",
+      subscribe(fn) {
+        listener = fn;
+        db.collection("entries").onSnapshot(snap => {
+          entries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          emit();
+        }, err => setStatus("Verbinding verbroken, herlaad de pagina"));
+        db.doc("settings/main").onSnapshot(snap => {
+          const t = snap.exists ? snap.data().target : null;
+          target = Number.isInteger(t) && t > 0 ? t : DEFAULT_TARGET;
+          emit();
+        }, () => {});
+      },
+      add: e => db.collection("entries").add(e),
+      remove: id => db.collection("entries").doc(id).delete(),
+      setTarget: t => db.doc("settings/main").set({ target: t }),
+    };
+  }
+  function setStatus(t) { $("status").textContent = t; }
+
+  async function init() {
+    let db = null;
+    try { db = window.claude && window.claude.use ? await window.claude.use("db") : null; } catch { db = null; }
+    store = db ? dbStore(db) : localStore();
+    setStatus(store.mode === "db" ? "Online opgeslagen · iedereen ziet hetzelfde" : "Opgeslagen op dit apparaat");
+    store.subscribe((entries, target) => {
+      state.entries = entries.filter(e => Number.isInteger(e.amount) && e.amount > 0 && KINDS[e.kind]);
+      state.target = target;
+      state.ready = true;
+      render();
+    });
+  }
+
+  /* ---------- Raket van LEGO-steentjes ---------- */
+  const C = {
+    G: ["#5f6672", "#7b828e"], W: ["#eef0f4", "#ffffff"], B: ["#23262d", "#3a3e47"],
+    O: ["#e0702a", "#f08d4f"], S: ["#aeb6c3", "#c8cfda"], R: ["#d22f3c", "#e8505c"],
+  };
+  // Rijen van onder naar boven: [startkolom, breedte, kleur]
+  function rocketRows() {
+    const rows = [];
+    rows.push([[0,3,"G"],[5,5,"G"],[12,3,"G"]]);                       // motoren
+    for (let r = 1; r <= 23; r++) {
+      const b = (r % 7 === 1) ? "B" : "W";                              // booster-ringen
+      rows.push([[0,3,b],[4,7,"O"],[12,3,b]]);
+    }
+    rows.push([[0,3,"S"],[4,7,"O"],[12,3,"S"]]);                        // neuskegels boosters
+    rows.push([[1,1,"W"],[4,7,"O"],[13,1,"W"]]);
+    rows.push([[4,7,"B"]]);                                             // bovenkant kernfase
+    rows.push([[4,7,"W"]]);                                             // adapter
+    rows.push([[5,5,"W"]], [[5,5,"W"]]);                                // bovenste trap (ICPS)
+    rows.push([[5,5,"S"]], [[5,5,"S"]], [[5,5,"S"]]);                    // Orion servicemodule
+    rows.push([[5,5,"W"]], [[6,3,"W"]], [[7,1,"W"]]);                    // Orion capsule
+    rows.push([[7,1,"W"]], [[7,1,"W"]], [[7,1,"R"]]);                    // ontsnappingstoren
+    return rows;
+  }
+  function split(len, flip) {
+    const parts = [];
+    let left = len;
+    while (left > 0) {
+      const p = left >= 6 ? 4 : left === 5 ? 3 : left === 4 ? 4 : left;
+      parts.push(p); left -= p;
+    }
+    return flip ? parts.reverse() : parts;
+  }
+  const U = 20, H = 15, COLS = 15;
+  const ROWS = rocketRows();
+  const BRICKS = [];
+  ROWS.forEach((segs, r) => {
+    segs.forEach(([s, w, col]) => {
+      let x = s;
+      for (const len of split(w, r % 2 === 1)) { BRICKS.push({ r, x, len, col }); x += len; }
+    });
+  });
+  const TOP = 30; // ruimte boven de raket
+  const SVG_H = TOP + ROWS.length * H + 40;
+  const svg = $("rocket");
+  svg.setAttribute("viewBox", `-10 0 ${COLS * U + 20} ${SVG_H}`);
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (tag, attrs) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); return n; };
+  const yOf = r => TOP + (ROWS.length - 1 - r) * H;
+
+  function drawRocket(filled) {
+    svg.textContent = "";
+    // lanceerplatform
+    const padY = TOP + ROWS.length * H;
+    svg.append(el("rect", { x: -10, y: padY, width: COLS * U + 20, height: 14, fill: "#6b717d" }));
+    svg.append(el("rect", { x: -10, y: padY + 14, width: COLS * U + 20, height: 26, fill: "#3b404a" }));
+    const ship = el("g", { id: "ship" });
+    if (launched) ship.classList.add("launched");
+    // vlammen
+    const flame = el("g", { id: "flame" });
+    [[1.5, 3], [7.5, 5], [13.5, 3]].forEach(([cx, w]) => {
+      const x = cx * U, hw = w * U / 2;
+      flame.append(el("path", { d: `M${x - hw} ${padY} Q${x} ${padY + 140} ${x + hw} ${padY} Z`, fill: "#ffb347" }));
+      flame.append(el("path", { d: `M${x - hw / 2} ${padY} Q${x} ${padY + 80} ${x + hw / 2} ${padY} Z`, fill: "#fff3c4" }));
+    });
+    ship.append(flame);
+    // eerst de bouwtekening, dan de geplaatste steentjes (van onder naar boven zodat noppen goed overlappen)
+    BRICKS.forEach((b, i) => {
+      if (i < filled) return;
+      const x = b.x * U, y = yOf(b.r);
+      ship.append(el("rect", { class: "ghost", x: x + .5, y: y + .5, width: b.len * U - 1, height: H - 1, rx: 1.5 }));
+    });
+    BRICKS.forEach((b, i) => {
+      if (i >= filled) return;
+      const x = b.x * U, y = yOf(b.r);
+      const [base, light] = C[b.col];
+      const g = el("g", { class: "brick-g" });
+      for (let s = 0; s < b.len; s++) g.append(el("rect", { x: x + s * U + 5, y: y - 3, width: 10, height: 4, rx: 1, fill: light, stroke: "rgba(0,0,0,.3)", "stroke-width": .8 }));
+      g.append(el("rect", { class: "brick", x: x + .5, y: y + .5, width: b.len * U - 1, height: H - 1, rx: 1.5, fill: base }));
+      if (prevFilled !== null && i >= prevFilled) { g.setAttribute("class", "brick-g new"); g.style.animationDelay = Math.min((i - prevFilled) * 25, 1500) + "ms"; }
+      ship.append(g);
+    });
+    svg.append(ship);
+  }
+
+  /* ---------- Weergave ---------- */
+  let launched = false;
+  const MS = [
+    { p: 25, msg: "25%! De boosters staan. Goed bezig, Ole!" },
+    { p: 50, msg: "Halverwege! De helft van de raket staat." },
+    { p: 75, msg: "75%! Orion komt in zicht." },
+    { p: 100, msg: "100%! Doel bereikt. Klaar voor lancering!" },
+  ];
+  function totals() {
+    const t = { klus: 0, eigen: 0, gift: 0, n: { klus: 0, eigen: 0, gift: 0 } };
+    for (const e of state.entries) { t[e.kind] += e.amount; t.n[e.kind]++; }
+    t.all = t.klus + t.eigen + t.gift;
+    return t;
+  }
+  function render() {
+    const t = totals();
+    const target = state.target;
+    const ratio = Math.min(t.all / target, 1);
+    const pct = Math.floor(ratio * 100);
+    $("t-saved").textContent = fmt(t.all);
+    $("t-left").textContent = fmt(Math.max(target - t.all, 0));
+    $("t-goal").textContent = fmt(target);
+    const w = k => (target ? Math.min(t[k] / Math.max(target, t.all) * 100, 100) : 0) + "%";
+    $("m-klus").style.width = w("klus"); $("m-eigen").style.width = w("eigen"); $("m-gift").style.width = w("gift");
+    $("meter").setAttribute("aria-label", `${pct}% van het doel gespaard`);
+    $("pct").textContent = pct + "%";
+
+    // hint
+    let hint;
+    if (!t.all) hint = "Voeg je eerste bedrag toe en zie het eerste steentje op het lanceerplatform verschijnen.";
+    else if (t.all >= target) hint = `Gelukt! Je hebt ${fmt(t.all - target)} meer dan nodig. Tijd om de raket te kopen.`;
+    else if (t.n.klus) {
+      const avg = t.klus / t.n.klus;
+      const n = Math.ceil((target - t.all) / avg);
+      hint = `Je verdient gemiddeld ${fmt(Math.round(avg))} per klusje. Dan nog ongeveer ${n} klusje${n === 1 ? "" : "s"} te gaan.`;
+    } else hint = `Nog ${fmt(target - t.all)} te gaan. Elk klusje helpt!`;
+    $("t-hint").textContent = hint;
+
+    // bronnen
+    for (const k of ["klus", "eigen", "gift"]) {
+      $("s-" + k).textContent = fmt(t[k]);
+      const share = t.all ? Math.round(t[k] / t.all * 100) : 0;
+      $("s-" + k + "-m").textContent = `${t.n[k]} keer · ${share}% van totaal`;
+    }
+
+    // raket
+    const filled = Math.floor(ratio * BRICKS.length);
+    $("bricks").textContent = `${filled} van ${BRICKS.length}`;
+    const lastRow = filled ? BRICKS[filled - 1].r : -1;
+    $("phase").textContent = filled === 0 ? "Lanceerplatform staat klaar"
+      : lastRow < 1 ? "Motoren geplaatst"
+      : lastRow < 25 ? "Boosters en kernfase in aanbouw"
+      : lastRow < 30 ? "Bovenste trap in aanbouw"
+      : filled < BRICKS.length ? "Orion-capsule in aanbouw" : "Raket compleet!";
+    if (prevFilled === null || filled !== prevFilled) drawRocket(filled);
+    document.querySelectorAll(".ms").forEach(m => m.classList.toggle("on", pct >= +m.dataset.p));
+    $("launch").hidden = ratio < 1;
+    if (ratio < 1) launched = false;
+
+    // mijlpaal-feestje alleen bij een nieuwe stap in deze sessie
+    if (prevFilled !== null && filled > prevFilled) {
+      const before = prevFilled / BRICKS.length * 100, now = filled / BRICKS.length * 100;
+      const hit = MS.filter(m => before < m.p && now >= m.p).pop();
+      if (hit) {
+        toast(hit.msg);
+        if (hit.p === 100) { confetti(260); setTimeout(launch, 900); }
+        else confetti(90);
+      }
+    }
+    prevFilled = filled;
+    renderLog();
+  }
+
+  function renderLog() {
+    const list = $("log");
+    const items = [...state.entries].sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.createdAt || 0) - (a.createdAt || 0));
+    list.textContent = "";
+    $("log-empty").hidden = items.length > 0;
+    $("log-count").textContent = items.length ? `${items.length} ${items.length === 1 ? "boeking" : "boekingen"}` : "";
+    const df = new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "short", year: "2-digit" });
+    for (const e of items) {
+      const li = document.createElement("li");
+      const k = KINDS[e.kind];
+      const d = e.date ? df.format(new Date(e.date + "T12:00:00")) : "";
+      const meta = document.createElement("div"); meta.className = "meta";
+      const dEl = document.createElement("span"); dEl.className = "d num"; dEl.textContent = d;
+      const chip = document.createElement("span"); chip.className = "chip"; chip.style.setProperty("--c", k.color); chip.textContent = k.label;
+      meta.append(dEl, chip);
+      const who = document.createElement("div"); who.className = "who";
+      who.textContent = e.from || "";
+      if (e.note) { const s = document.createElement("small"); s.textContent = e.note; who.append(s); }
+      const a = document.createElement("span"); a.className = "a num"; a.textContent = "+ " + fmt(e.amount);
+      const del = document.createElement("button"); del.type = "button"; del.className = "del"; del.textContent = "Wissen";
+      del.setAttribute("aria-label", `Wis ${k.label} van ${fmt(e.amount)}`);
+      del.addEventListener("click", async () => {
+        if (!del.classList.contains("confirm")) {
+          del.classList.add("confirm"); del.textContent = "Zeker?";
+          setTimeout(() => { if (del.isConnected) { del.classList.remove("confirm"); del.textContent = "Wissen"; } }, 3500);
+          return;
+        }
+        del.disabled = true;
+        try { await store.remove(e.id); toast("Boeking gewist"); }
+        catch (err) { del.disabled = false; toast(writeError(err)); }
+      });
+      li.append(meta, who, a, del);
+      list.append(li);
+    }
+    // namenlijst voor snel invullen
+    const names = [...new Set(state.entries.map(e => e.from).filter(Boolean))].slice(0, 30);
+    $("names").textContent = "";
+    for (const n of names) { const o = document.createElement("option"); o.value = n; $("names").append(o); }
+  }
+
+  /* ---------- Formulier ---------- */
+  const today = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+  $("f-date").value = today();
+  function parseCents(s) {
+    const v = String(s).trim().replace(/\s|€/g, "").replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", ".");
+    if (!/^\d+(\.\d{1,2})?$/.test(v)) return null;
+    return Math.round(parseFloat(v) * 100);
+  }
+  const kindNow = () => document.querySelector('input[name="kind"]:checked').value;
+  let autoFrom = "";
+  function syncKind() {
+    const k = KINDS[kindNow()];
+    $("f-from-label").textContent = k.fromLabel;
+    $("f-from").placeholder = k.fromPh;
+    $("f-note-label").textContent = k.noteLabel;
+    $("f-note").placeholder = k.notePh;
+    const from = $("f-from");
+    if (kindNow() === "eigen" && !from.value) { from.value = "Ole"; autoFrom = "Ole"; }
+    else if (kindNow() !== "eigen" && from.value === autoFrom && autoFrom) { from.value = ""; autoFrom = ""; }
+  }
+  document.querySelectorAll('input[name="kind"]').forEach(r => r.addEventListener("change", syncKind));
+  syncKind();
+
+  function writeError(err) {
+    const code = err && err.code;
+    if (code === "invalid_argument") return "Je mag hier niets wijzigen. Vraag papa of mama om je toegang te geven.";
+    if (code === "quota_exceeded") return "Het logboek is vol. Wis een paar oude boekingen.";
+    return "Opslaan lukte niet. Probeer het zo nog eens.";
+  }
+
+  $("add-form").addEventListener("submit", async ev => {
+    ev.preventDefault();
+    const err = $("f-err");
+    const amount = parseCents($("f-amount").value);
+    const date = $("f-date").value;
+    const from = $("f-from").value.trim();
+    const note = $("f-note").value.trim();
+    if (!amount) { err.textContent = "Vul een bedrag in, bijvoorbeeld 2,50."; $("f-amount").focus(); return; }
+    if (amount > 100000) { err.textContent = "Dat is wel heel veel geld. Klopt het bedrag?"; $("f-amount").focus(); return; }
+    if (!date) { err.textContent = "Kies een datum."; $("f-date").focus(); return; }
+    if (!from) { err.textContent = "Vul in van wie het geld komt."; $("f-from").focus(); return; }
+    if (kindNow() === "klus" && !note) { err.textContent = "Schrijf op welk klusje je gedaan hebt."; $("f-note").focus(); return; }
+    err.textContent = "";
+    if (!store) { err.textContent = "Even wachten, de gegevens worden nog geladen."; return; }
+    const btn = $("f-submit"); btn.disabled = true;
+    try {
+      await store.add({ kind: kindNow(), amount, date, from, note, createdAt: Date.now() });
+      toast(`${fmt(amount)} toegevoegd. Nieuwe steentjes geplaatst!`);
+      $("f-amount").value = ""; $("f-note").value = "";
+      if (kindNow() !== "eigen") { $("f-from").value = ""; }
+      $("f-amount").focus();
+    } catch (e) { err.textContent = writeError(e); }
+    finally { btn.disabled = false; }
+  });
+
+  // doel aanpassen
+  $("goal-edit").addEventListener("click", () => {
+    $("goal-form").hidden = false; $("goal-edit").hidden = true;
+    $("g-amount").value = (state.target / 100).toFixed(2).replace(".", ","); $("g-amount").focus();
+  });
+  $("goal-cancel").addEventListener("click", () => { $("goal-form").hidden = true; $("goal-edit").hidden = false; $("g-err").textContent = ""; });
+  $("goal-form").addEventListener("submit", async ev => {
+    ev.preventDefault();
+    const c = parseCents($("g-amount").value);
+    if (!c || c < 100) { $("g-err").textContent = "Vul een doelbedrag in van minimaal € 1,00."; return; }
+    try {
+      await store.setTarget(c);
+      $("goal-form").hidden = true; $("goal-edit").hidden = false; $("g-err").textContent = "";
+      toast(`Nieuw doel: ${fmt(c)}`);
+    } catch (e) { $("g-err").textContent = writeError(e); }
+  });
+
+  /* ---------- Feest ---------- */
+  let toastTimer;
+  function toast(msg) {
+    const t = $("toast"); t.textContent = msg; t.classList.add("show");
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 3200);
+  }
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function confetti(n) {
+    if (reduced) return;
+    const cv = $("confetti"), ctx = cv.getContext("2d");
+    const W = cv.width = innerWidth, Hh = cv.height = innerHeight;
+    const cols = ["#e0702a", "#ffd23f", "#2f9e5b", "#2f6fd6", "#c2408a", "#ffffff"];
+    const ps = Array.from({ length: n }, () => ({
+      x: W / 2 + (Math.random() - .5) * W * .4, y: Hh * .35, vx: (Math.random() - .5) * 12, vy: -Math.random() * 12 - 4,
+      w: 8, h: 6, c: cols[Math.random() * cols.length | 0], r: Math.random() * 6, vr: (Math.random() - .5) * .3,
+    }));
+    let f = 0;
+    (function tick() {
+      ctx.clearRect(0, 0, W, Hh);
+      for (const p of ps) {
+        p.vy += .35; p.vx *= .99; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.fillStyle = p.c; ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        // LEGO-nopje
+        ctx.fillRect(-2, -p.h / 2 - 2, 4, 2); ctx.restore();
+      }
+      if (++f < 180) requestAnimationFrame(tick); else ctx.clearRect(0, 0, W, Hh);
+    })();
+  }
+  function launch() {
+    const ship = $("ship"); if (!ship) return;
+    if (launched) { // terugzetten op het platform
+      launched = false; ship.classList.remove("launched"); $("launch").textContent = "Lanceer de raket!"; return;
+    }
+    ship.classList.add("igniting");
+    setTimeout(() => { launched = true; ship.classList.add("launched"); $("launch").textContent = "Terug naar het platform"; confetti(120); }, reduced ? 0 : 700);
+  }
+  $("launch").addEventListener("click", launch);
+
+  drawRocket(0);
+  $("bricks").textContent = `0 van ${BRICKS.length}`;
+  init();
+})();
+</script>

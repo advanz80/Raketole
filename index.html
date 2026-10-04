@@ -335,7 +335,8 @@ button { font: inherit; cursor: pointer; border-radius: 10px; border: 0; }
   let store = null;
 
   /* ---------- Opslag: Supabase, anders lokaal (voor testen) ---------- */
-  // Vul hier jullie Supabase-gegevens in (Project Settings > API). De anon key is openbaar; nooit de service_role key!
+  // Vul hier jullie Supabase-gegevens in (knop "Connect" of Project Settings > API Keys).
+  // Gebruik de publishable key (sb_publishable_...) of de legacy anon key (eyJ...). Nooit de secret/service_role key!
   const CONFIG = {
     url: "https://JOUW-PROJECT.supabase.co",
     anonKey: "JOUW-ANON-KEY",
@@ -354,7 +355,9 @@ button { font: inherit; cursor: pointer; border-radius: 10px; border: 0; }
 
   function supaStore() {
     const base = CONFIG.url.replace(/\/+$/, "") + "/rest/v1";
-    const headers = { apikey: CONFIG.anonKey, Authorization: "Bearer " + CONFIG.anonKey, "Content-Type": "application/json" };
+    const headers = { apikey: CONFIG.anonKey, "Content-Type": "application/json" };
+    // Oude anon keys (JWT, "eyJ...") ook als Bearer meesturen; nieuwe sb_publishable_ keys alleen als apikey.
+    if (CONFIG.anonKey.startsWith("eyJ")) headers.Authorization = "Bearer " + CONFIG.anonKey;
     let listener = () => {};
     async function get(path) {
       const r = await fetch(base + path, { headers, cache: "no-store" });

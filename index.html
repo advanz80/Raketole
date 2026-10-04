@@ -1,3 +1,8 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Ole's Artemis-raket</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -36,8 +41,9 @@
 }
 
 * { box-sizing: border-box; }
+html { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
 [hidden] { display: none !important; }
-body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.5; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.5; }
 .wrap { max-width: 1120px; margin: 0 auto; padding-inline: 16px; padding-block: 20px 48px; display: grid; gap: 20px; }
 h1, h2 { font-family: var(--display); font-weight: 400; margin: 0; text-wrap: balance; letter-spacing: .01em; }
 h1 { font-size: clamp(1.6rem, 4.5vw, 2.4rem); line-height: 1.1; }
@@ -176,7 +182,13 @@ button { font: inherit; cursor: pointer; border-radius: 10px; border: 0; }
   #ship { transition: none; }
   .meter span { transition: none; }
 }
+.lock { display: grid; gap: 10px; }
+.lock-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.lock-row input { flex: 1 1 140px; letter-spacing: .3em; font-size: 1.15rem; font-weight: 700; }
+.linkish { background: none; color: var(--muted); text-decoration: underline; padding: 0; font-size: .85rem; justify-self: start; }
 </style>
+</head>
+<body>
 
 <canvas id="confetti" aria-hidden="true"></canvas>
 <div class="wrap">
@@ -223,6 +235,15 @@ button { font: inherit; cursor: pointer; border-radius: 10px; border: 0; }
 
       <section class="panel" aria-labelledby="h-add">
         <h2 id="h-add">Geld erbij</h2>
+        <form id="lock" class="lock" hidden>
+          <p class="hint">Iedereen kan meekijken. Om geld toe te voegen of te wissen heb je de gezinspincode nodig. Je hoeft hem op dit apparaat maar één keer in te vullen.</p>
+          <label class="l" for="pin">Gezinspincode</label>
+          <div class="lock-row">
+            <input type="password" id="pin" inputmode="numeric" autocomplete="off" maxlength="20">
+            <button class="btn" type="submit" id="pin-btn">Ontgrendel</button>
+          </div>
+          <p class="err" id="pin-err" role="alert"></p>
+        </form>
         <form id="add-form" novalidate>
           <fieldset class="kinds">
             <legend class="l">Waar komt het geld vandaan?</legend>
@@ -251,6 +272,7 @@ button { font: inherit; cursor: pointer; border-radius: 10px; border: 0; }
           </div>
           <p class="err" id="f-err" role="alert"></p>
           <button class="btn" type="submit" id="f-submit">Steentjes toevoegen</button>
+          <button class="linkish" type="button" id="relock" hidden>Dit apparaat vergrendelen</button>
         </form>
       </section>
 
@@ -312,7 +334,68 @@ button { font: inherit; cursor: pointer; border-radius: 10px; border: 0; }
   let prevFilled = null;
   let store = null;
 
-  /* ---------- Opslag: gedeelde db, anders lokaal ---------- */
+  /* ---------- Opslag: Supabase, anders lokaal (voor testen) ---------- */
+  // Vul hier jullie Supabase-gegevens in (Project Settings > API). De anon key is openbaar; nooit de service_role key!
+  const CONFIG = {
+    url: "https://JOUW-PROJECT.supabase.co",
+    anonKey: "JOUW-ANON-KEY",
+  };
+  const configured = !/JOUW-/.test(CONFIG.url + CONFIG.anonKey);
+
+  const PIN_KEY = "ole-raket-pin";
+  let pin = "";
+  try { pin = localStorage.getItem(PIN_KEY) || ""; } catch {}
+  function savePin(p) {
+    pin = p;
+    try { p ? localStorage.setItem(PIN_KEY, p) : localStorage.removeItem(PIN_KEY); } catch {}
+    renderLock(); renderLog();
+  }
+  const fail = (code, message) => Object.assign(new Error(message || code), { code });
+
+  function supaStore() {
+    const base = CONFIG.url.replace(/\/+$/, "") + "/rest/v1";
+    const headers = { apikey: CONFIG.anonKey, Authorization: "Bearer " + CONFIG.anonKey, "Content-Type": "application/json" };
+    let listener = () => {};
+    async function get(path) {
+      const r = await fetch(base + path, { headers, cache: "no-store" });
+      if (!r.ok) throw fail("server", "HTTP " + r.status);
+      return r.json();
+    }
+    async function rpc(fn, args) {
+      let r;
+      try { r = await fetch(`${base}/rpc/${fn}`, { method: "POST", headers, body: JSON.stringify(args) }); }
+      catch { throw fail("offline"); }
+      const body = await r.json().catch(() => null);
+      if (!r.ok) throw fail(body && body.code === "P0001" ? "locked" : "server", body && body.message);
+      if (body && body.ok === false) throw fail(body.error || "server");
+      return body;
+    }
+    async function refresh() {
+      try {
+        const [rows, settings] = await Promise.all([
+          get("/raket_entries?select=id,kind,amount_cents,date,from_name,note,created_at&order=date.desc,created_at.desc&limit=1000"),
+          get("/raket_settings?select=target_cents&id=eq.1"),
+        ]);
+        const entries = rows.map(r => ({ id: r.id, kind: r.kind, amount: r.amount_cents, date: r.date, from: r.from_name, note: r.note || "", createdAt: Date.parse(r.created_at) || 0 }));
+        listener(entries, (settings[0] && settings[0].target_cents) || DEFAULT_TARGET);
+        setStatus("Online opgeslagen · iedereen ziet hetzelfde");
+      } catch { setStatus("Geen verbinding met de spaarpot, ik probeer het zo opnieuw"); }
+    }
+    return {
+      mode: "supabase",
+      needsPin: true,
+      subscribe(fn) {
+        listener = fn; refresh();
+        setInterval(() => { if (!document.hidden) refresh(); }, 20000);
+        document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+      },
+      verify: p => rpc("raket_verify", { p_pin: p }),
+      async add(e) { await rpc("raket_add", { p_pin: pin, p_kind: e.kind, p_amount_cents: e.amount, p_date: e.date, p_from: e.from, p_note: e.note }); await refresh(); },
+      async remove(id) { await rpc("raket_delete", { p_pin: pin, p_id: id }); await refresh(); },
+      async setTarget(t) { await rpc("raket_set_target", { p_pin: pin, p_target_cents: t }); await refresh(); },
+    };
+  }
+
   const LS_KEY = "ole-raket-v1";
   function localStore() {
     const read = () => { try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch { return {}; } };
@@ -321,41 +404,30 @@ button { font: inherit; cursor: pointer; border-radius: 10px; border: 0; }
     const emit = () => { const d = read(); listener(d.entries || [], d.target ?? DEFAULT_TARGET); };
     return {
       mode: "local",
+      needsPin: false,
       subscribe(fn) { listener = fn; emit(); },
+      async verify() {},
       async add(e) { const d = read(); d.entries = d.entries || []; d.entries.push({ ...e, id: "l" + Date.now() + Math.random().toString(36).slice(2, 6) }); write(d); emit(); },
       async remove(id) { const d = read(); d.entries = (d.entries || []).filter(x => x.id !== id); write(d); emit(); },
       async setTarget(t) { const d = read(); d.target = t; write(d); emit(); },
     };
   }
-  function dbStore(db) {
-    let entries = [], target = DEFAULT_TARGET, listener = () => {};
-    const emit = () => listener(entries, target);
-    return {
-      mode: "db",
-      subscribe(fn) {
-        listener = fn;
-        db.collection("entries").onSnapshot(snap => {
-          entries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-          emit();
-        }, err => setStatus("Verbinding verbroken, herlaad de pagina"));
-        db.doc("settings/main").onSnapshot(snap => {
-          const t = snap.exists ? snap.data().target : null;
-          target = Number.isInteger(t) && t > 0 ? t : DEFAULT_TARGET;
-          emit();
-        }, () => {});
-      },
-      add: e => db.collection("entries").add(e),
-      remove: id => db.collection("entries").doc(id).delete(),
-      setTarget: t => db.doc("settings/main").set({ target: t }),
-    };
-  }
   function setStatus(t) { $("status").textContent = t; }
+  const unlocked = () => !store || !store.needsPin || !!pin;
 
-  async function init() {
-    let db = null;
-    try { db = window.claude && window.claude.use ? await window.claude.use("db") : null; } catch { db = null; }
-    store = db ? dbStore(db) : localStore();
-    setStatus(store.mode === "db" ? "Online opgeslagen · iedereen ziet hetzelfde" : "Opgeslagen op dit apparaat");
+  function renderLock() {
+    const open = unlocked();
+    $("lock").hidden = open;
+    $("add-form").hidden = !open;
+    $("relock").hidden = !(open && store && store.needsPin);
+    $("goal-edit").hidden = !open || !$("goal-form").hidden;
+    if (!open) $("goal-form").hidden = true;
+  }
+
+  function init() {
+    store = configured ? supaStore() : localStore();
+    if (!configured) setStatus("Testmodus: opgeslagen op dit apparaat");
+    renderLock();
     store.subscribe((entries, target) => {
       state.entries = entries.filter(e => Number.isInteger(e.amount) && e.amount > 0 && KINDS[e.kind]);
       state.target = target;
@@ -552,7 +624,8 @@ button { font: inherit; cursor: pointer; border-radius: 10px; border: 0; }
         try { await store.remove(e.id); toast("Boeking gewist"); }
         catch (err) { del.disabled = false; toast(writeError(err)); }
       });
-      li.append(meta, who, a, del);
+      li.append(meta, who, a);
+      if (unlocked()) li.append(del); else li.append(document.createElement("span"));
       list.append(li);
     }
     // namenlijst voor snel invullen
@@ -586,8 +659,9 @@ button { font: inherit; cursor: pointer; border-radius: 10px; border: 0; }
 
   function writeError(err) {
     const code = err && err.code;
-    if (code === "invalid_argument") return "Je mag hier niets wijzigen. Vraag papa of mama om je toegang te geven.";
-    if (code === "quota_exceeded") return "Het logboek is vol. Wis een paar oude boekingen.";
+    if (code === "pin") { savePin(""); $("pin-err").textContent = "De pincode klopt niet meer. Vul hem opnieuw in."; return "De pincode klopt niet meer. Vul hem opnieuw in."; }
+    if (code === "locked") return err.message;
+    if (code === "offline") return "Geen internet. Probeer het opnieuw als je weer verbinding hebt.";
     return "Opslaan lukte niet. Probeer het zo nog eens.";
   }
 
@@ -616,19 +690,41 @@ button { font: inherit; cursor: pointer; border-radius: 10px; border: 0; }
     finally { btn.disabled = false; }
   });
 
+  // pincode
+  $("lock").addEventListener("submit", async ev => {
+    ev.preventDefault();
+    const p = $("pin").value.trim();
+    const e = $("pin-err");
+    if (!p) { e.textContent = "Vul de pincode in."; $("pin").focus(); return; }
+    const btn = $("pin-btn"); btn.disabled = true; e.textContent = "";
+    try {
+      await store.verify(p);
+      $("pin").value = "";
+      savePin(p);
+      toast("Ontgrendeld. Je kunt nu sparen!");
+      $("f-amount").focus();
+    } catch (err) {
+      e.textContent = err.code === "pin" ? "Die pincode klopt niet. Probeer het nog eens."
+        : err.code === "locked" ? err.message
+        : err.code === "offline" ? "Geen internet. Probeer het zo nog eens."
+        : "Controleren lukte niet. Probeer het zo nog eens.";
+    } finally { btn.disabled = false; }
+  });
+  $("relock").addEventListener("click", () => { savePin(""); toast("Dit apparaat is vergrendeld"); });
+
   // doel aanpassen
   $("goal-edit").addEventListener("click", () => {
     $("goal-form").hidden = false; $("goal-edit").hidden = true;
     $("g-amount").value = (state.target / 100).toFixed(2).replace(".", ","); $("g-amount").focus();
   });
-  $("goal-cancel").addEventListener("click", () => { $("goal-form").hidden = true; $("goal-edit").hidden = false; $("g-err").textContent = ""; });
+  $("goal-cancel").addEventListener("click", () => { $("goal-form").hidden = true; $("g-err").textContent = ""; renderLock(); });
   $("goal-form").addEventListener("submit", async ev => {
     ev.preventDefault();
     const c = parseCents($("g-amount").value);
     if (!c || c < 100) { $("g-err").textContent = "Vul een doelbedrag in van minimaal € 1,00."; return; }
     try {
       await store.setTarget(c);
-      $("goal-form").hidden = true; $("goal-edit").hidden = false; $("g-err").textContent = "";
+      $("goal-form").hidden = true; $("g-err").textContent = ""; renderLock();
       toast(`Nieuw doel: ${fmt(c)}`);
     } catch (e) { $("g-err").textContent = writeError(e); }
   });
@@ -676,3 +772,5 @@ button { font: inherit; cursor: pointer; border-radius: 10px; border: 0; }
   init();
 })();
 </script>
+</body>
+</html>

@@ -11,13 +11,18 @@ set search_path = public, extensions;
 -- Boekingen: iedereen met de link mag lezen
 create table if not exists public.raket_entries (
   id bigint generated always as identity primary key,
-  kind text not null check (kind in ('klus', 'eigen', 'gift')),
+  kind text not null,
   amount_cents integer not null check (amount_cents > 0 and amount_cents <= 100000),
   date date not null,
   from_name text not null check (length(from_name) between 1 and 40),
   note text not null default '' check (length(note) <= 80),
   created_at timestamptz not null default now()
 );
+
+-- Toegestane soorten (los, zodat er later soorten bij kunnen; veilig om opnieuw te draaien)
+alter table public.raket_entries drop constraint if exists raket_entries_kind_check;
+alter table public.raket_entries add constraint raket_entries_kind_check
+  check (kind in ('klus', 'verkoop', 'eigen', 'gift'));
 
 -- Doelbedrag (precies één rij)
 create table if not exists public.raket_settings (

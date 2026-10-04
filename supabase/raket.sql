@@ -3,7 +3,10 @@
 -- VERVANG EERST 'KIES-JE-PINCODE' (onderaan) door jullie eigen pincode van minimaal 6 cijfers.
 -- Raakt de bestaande tabel user_data niet aan.
 
+create schema if not exists extensions;
 create extension if not exists pgcrypto with schema extensions;
+-- crypt() werkt zo ook als pgcrypto in een ander schema (bijv. public) staat
+set search_path = public, extensions;
 
 -- Boekingen: iedereen met de link mag lezen
 create table if not exists public.raket_entries (
@@ -48,7 +51,7 @@ revoke all on public.raket_secret from anon, authenticated;
 -- Controleert de pincode. Geeft false bij een foute code en telt de poging;
 -- na 5 foute pogingen 15 minuten op slot.
 create or replace function public.raket_pin_ok(p_pin text)
-returns boolean language plpgsql security definer set search_path = '' as $$
+returns boolean language plpgsql security definer set search_path = public, extensions, pg_temp as $$
 declare s public.raket_secret;
 begin
   select * into s from public.raket_secret where id = 1 for update;
@@ -56,7 +59,7 @@ begin
   if s.locked_until is not null and s.locked_until > now() then
     raise exception 'Te veel foute pincodes. Probeer het over 15 minuten opnieuw.';
   end if;
-  if s.pin_hash = extensions.crypt(coalesce(p_pin, ''), s.pin_hash) then
+  if s.pin_hash = crypt(coalesce(p_pin, ''), s.pin_hash) then
     update public.raket_secret set failed = 0, locked_until = null where id = 1;
     return true;
   end if;
@@ -70,14 +73,14 @@ end $$;
 -- Een foute pincode geeft {"ok": false} terug in plaats van een fout,
 -- zodat de mislukte poging wél wordt opgeslagen.
 create or replace function public.raket_verify(p_pin text)
-returns jsonb language plpgsql security definer set search_path = '' as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions, pg_temp as $$
 begin
   if not public.raket_pin_ok(p_pin) then return jsonb_build_object('ok', false, 'error', 'pin'); end if;
   return jsonb_build_object('ok', true);
 end $$;
 
 create or replace function public.raket_add(p_pin text, p_kind text, p_amount_cents integer, p_date date, p_from text, p_note text)
-returns jsonb language plpgsql security definer set search_path = '' as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions, pg_temp as $$
 declare new_id bigint;
 begin
   if not public.raket_pin_ok(p_pin) then return jsonb_build_object('ok', false, 'error', 'pin'); end if;
@@ -88,7 +91,7 @@ begin
 end $$;
 
 create or replace function public.raket_delete(p_pin text, p_id bigint)
-returns jsonb language plpgsql security definer set search_path = '' as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions, pg_temp as $$
 begin
   if not public.raket_pin_ok(p_pin) then return jsonb_build_object('ok', false, 'error', 'pin'); end if;
   delete from public.raket_entries where id = p_id;
@@ -96,7 +99,7 @@ begin
 end $$;
 
 create or replace function public.raket_set_target(p_pin text, p_target_cents integer)
-returns jsonb language plpgsql security definer set search_path = '' as $$
+returns jsonb language plpgsql security definer set search_path = public, extensions, pg_temp as $$
 begin
   if not public.raket_pin_ok(p_pin) then return jsonb_build_object('ok', false, 'error', 'pin'); end if;
   update public.raket_settings set target_cents = p_target_cents where id = 1;
@@ -111,5 +114,5 @@ grant execute on function public.raket_verify(text), public.raket_add(text, text
 
 -- Pincode instellen (of later wijzigen: draai alleen dit blok opnieuw met een nieuwe code)
 insert into public.raket_secret (id, pin_hash)
-values (1, extensions.crypt('KIES-JE-PINCODE', extensions.gen_salt('bf')))
+values (1, crypt('KIES-JE-PINCODE', gen_salt('bf')))
 on conflict (id) do update set pin_hash = excluded.pin_hash, failed = 0, locked_until = null;

@@ -104,6 +104,15 @@ header.top p { margin: 4px 0 0; color: var(--muted); }
 .ms b { display: block; font-family: var(--display); font-weight: 400; font-size: .95rem; }
 .ms.on { border-style: solid; border-color: #ffb27a; background: rgba(255,178,122,.14); color: #ffe2cc; }
 .launch-btn { justify-self: center; margin-bottom: 12px; }
+/* Feedback na het toevoegen: zwevend bedrag boven de raket + knop terug naar het formulier */
+.gain { position: absolute; left: 50%; top: 38%; transform: translate(-50%, 0); pointer-events: none; text-align: center; opacity: 0; z-index: 2; }
+.gain b { display: block; font-family: var(--display); font-weight: 400; font-size: clamp(2rem, 9vw, 2.8rem); color: #ffd23f; text-shadow: 0 2px 0 #7a3c10, 0 0 18px rgba(0,0,0,.6); line-height: 1; }
+.gain span { display: inline-block; margin-top: 6px; background: rgba(11,22,49,.85); border: 1px solid #ffb27a; color: #ffe2cc; border-radius: 999px; padding: 4px 12px; font-weight: 700; font-size: .9rem; }
+.gain.show { animation: gain 2.8s ease-out both; }
+@keyframes gain { 0% { opacity: 0; transform: translate(-50%, 30px) scale(.7); } 12% { opacity: 1; transform: translate(-50%, 0) scale(1.08); } 20% { transform: translate(-50%, 0) scale(1); } 75% { opacity: 1; transform: translate(-50%, -30px); } 100% { opacity: 0; transform: translate(-50%, -60px); } }
+.pct.bump { animation: bump .6s ease-out; }
+@keyframes bump { 40% { transform: scale(1.18); color: #ffd23f; } }
+.back-btn { justify-self: center; margin-bottom: 12px; background: #ffffff; color: #14213d; }
 
 /* ---------- Totaal ---------- */
 .totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
@@ -181,6 +190,8 @@ button { font: inherit; cursor: pointer; border-radius: 10px; border: 0; }
 @media (prefers-reduced-motion: reduce) {
   #rocket .new, #flame path { animation: none; }
   #ship { transition: none; }
+  .gain.show { animation: none; opacity: 1; }
+  .pct.bump { animation: none; }
   .meter span { transition: none; }
 }
 .lock { display: grid; gap: 10px; }
@@ -313,7 +324,9 @@ button { font: inherit; cursor: pointer; border-radius: 10px; border: 0; }
         <div class="rocket-stage">
           <svg id="rocket" role="img" aria-label="LEGO-raket die wordt opgebouwd"></svg>
         </div>
+        <div class="gain" id="gain" role="status" aria-live="polite"><b id="gain-amt"></b><span id="gain-msg"></span></div>
         <button class="btn launch-btn" type="button" id="launch" hidden>Lanceer de raket!</button>
+        <button class="btn back-btn" type="button" id="back-add" hidden>Nog een bedrag toevoegen</button>
         <div class="pad-foot"><span>NASA Artemis SLS · 3601 stukjes</span><span>Kennedy Space Center · <b>LC-39B</b></span></div>
       </div>
     </aside>
@@ -336,6 +349,7 @@ button { font: inherit; cursor: pointer; border-radius: 10px; border: 0; }
 
   let state = { entries: [], target: DEFAULT_TARGET, ready: false };
   let prevFilled = null;
+  let holdRocket = false; // raket even niet bijwerken terwijl we naar de raket scrollen
   let store = null;
 
   /* ---------- Opslag: Supabase, anders lokaal (voor testen) ---------- */
@@ -553,7 +567,7 @@ button { font: inherit; cursor: pointer; border-radius: 10px; border: 0; }
     const w = k => (target ? Math.min(t[k] / Math.max(target, t.all) * 100, 100) : 0) + "%";
     for (const k in KINDS) $("m-" + k).style.width = w(k);
     $("meter").setAttribute("aria-label", `${pct}% van het doel gespaard`);
-    $("pct").textContent = pct + "%";
+    if (!holdRocket) $("pct").textContent = pct + "%";
 
     // hint
     let hint;
@@ -574,6 +588,7 @@ button { font: inherit; cursor: pointer; border-radius: 10px; border: 0; }
     }
 
     // raket
+    if (holdRocket) { renderLog(); return; }
     const filled = Math.floor(ratio * BRICKS.length);
     $("bricks").textContent = `${filled} van ${BRICKS.length}`;
     const lastRow = filled ? BRICKS[filled - 1].r : -1;
@@ -689,13 +704,14 @@ button { font: inherit; cursor: pointer; border-radius: 10px; border: 0; }
     err.textContent = "";
     if (!store) { err.textContent = "Even wachten, de gegevens worden nog geladen."; return; }
     const btn = $("f-submit"); btn.disabled = true;
+    const before = prevFilled ?? 0;
+    holdRocket = true;
     try {
       await store.add({ kind: kindNow(), amount, date, from, note, createdAt: Date.now() });
-      toast(`${fmt(amount)} toegevoegd. Nieuwe steentjes geplaatst!`);
       $("f-amount").value = ""; $("f-note").value = "";
       if (kindNow() !== "eigen") { $("f-from").value = ""; }
-      $("f-amount").focus();
-    } catch (e) { err.textContent = writeError(e); }
+      celebrateAdd(amount, before);
+    } catch (e) { holdRocket = false; render(); err.textContent = writeError(e); }
     finally { btn.disabled = false; }
   });
 
@@ -737,6 +753,48 @@ button { font: inherit; cursor: pointer; border-radius: 10px; border: 0; }
       toast(`Nieuw doel: ${fmt(c)}`);
     } catch (e) { $("g-err").textContent = writeError(e); }
   });
+
+  /* ---------- Na toevoegen: naar de raket en steentjes laten vallen ---------- */
+  const rocketVisible = () => {
+    const r = $("rocket").getBoundingClientRect();
+    return r.top >= -r.height * .15 && r.bottom <= innerHeight + r.height * .15;
+  };
+  function scrollTo(elm, block) {
+    return new Promise(res => {
+      if (reduced) { elm.scrollIntoView({ block }); return res(); }
+      let done = false; const end = () => { if (!done) { done = true; res(); } };
+      addEventListener("scrollend", end, { once: true });
+      setTimeout(end, 900);
+      elm.scrollIntoView({ behavior: "smooth", block });
+    });
+  }
+  async function celebrateAdd(amount, before) {
+    const needScroll = !rocketVisible();
+    if (needScroll) {
+      if (document.activeElement) document.activeElement.blur(); // toetsenbord dicht op telefoon
+      await scrollTo(document.querySelector(".pad"), "start");
+    }
+    holdRocket = false;
+    render(); // nu pas de nieuwe steentjes tekenen, zodat de val-animatie in beeld gebeurt
+    const added = prevFilled - before;
+    $("gain-amt").textContent = "+ " + fmt(amount);
+    $("gain-msg").textContent = added > 0 ? `${added} ${added === 1 ? "steentje" : "steentjes"} erbij!`
+      : prevFilled >= BRICKS.length ? "Raket is al compleet!" : "Bijna een nieuw steentje!";
+    const g = $("gain"); g.classList.remove("show"); void g.offsetWidth; g.classList.add("show");
+    const p = $("pct"); p.classList.remove("bump"); void p.offsetWidth; p.classList.add("bump");
+    if (needScroll) $("back-add").hidden = false;
+    else $("f-amount").focus();
+  }
+  $("back-add").addEventListener("click", async () => {
+    $("back-add").hidden = true;
+    await scrollTo($("h-add"), "start");
+    $("f-amount").focus({ preventScroll: true });
+  });
+  // knop verbergen zodra het formulier weer in beeld is
+  if ("IntersectionObserver" in window) {
+    new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) $("back-add").hidden = true; }, { threshold: .5 })
+      .observe($("f-submit"));
+  }
 
   /* ---------- Feest ---------- */
   let toastTimer;
